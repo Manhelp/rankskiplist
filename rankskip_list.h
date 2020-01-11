@@ -6,7 +6,7 @@
 #ifndef SERVER_SKIP_LIST_H
 #define SERVER_SKIP_LIST_H
 
-#include <unordered_map>
+#include <map>
 #include <cmath>
 using namespace std;
 
@@ -28,7 +28,7 @@ struct skiplistNode
     }levels[];
     static int Size(int level)
     {
-        int size =  sizeof(skiplistNode<SCORE_TYPE,MEMBER_TYPE>) + level * (sizeof(skiplistNode<SCORE_TYPE,MEMBER_TYPE>*) + sizeof(unsigned long));
+        int size =  sizeof(skiplistNode<SCORE_TYPE,MEMBER_TYPE>) + level * (sizeof(zskiplistLevel));
         return  size;
     }
 };
@@ -140,7 +140,7 @@ private:
     }
 private:
     //tips:最初想把rank也缓存在map里，但是发现插入一个节点很可能会导致很多甚至所有的节点的排名都发生变化，缓存失效的概率太大
-    std::unordered_map<MEMBER_TYPE,SCORE_TYPE> mrankMap;
+    std::map<MEMBER_TYPE,SCORE_TYPE> mrankMap;
     skiplist<SCORE_TYPE,MEMBER_TYPE> mskiplist;
     unsigned long mrankMaxLen;//排行榜最大长度 0 不限制
 };
