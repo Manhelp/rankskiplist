@@ -63,6 +63,17 @@ public:
         mrankMaxLen = maxLen;
     }
 
+    ~CRankSkipList()
+    {
+        skiplistNode<SCORE_TYPE,MEMBER_TYPE> *node = mskiplist.header->levels[0].forward, *next;
+        free(mskiplist.header);
+        while(node) {
+            next = node->levels[0].forward;
+            free(node);
+            node = next;
+        }
+    }
+
     /**
      * 插入一个新的节点如果ele已存在，则更新积分
      * @param zsl
