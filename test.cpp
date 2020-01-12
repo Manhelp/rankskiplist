@@ -114,6 +114,10 @@ private:
 int main()
 {
     CRankSkipList<Score,int>* rankSkipList = new CRankSkipList<Score,int>(MAX_RANK);
+    for (int i = 15;i <= 100000;i++)
+    {
+        rankSkipList->InsertOrUpdateNode(Score(i,std::rand() % 100 + 1,std::rand() % 100 + 1,std::rand() % 100 + 1),i);
+    }
     rankSkipList->InsertOrUpdateNode(Score(1,100,99,100),1);
     rankSkipList->InsertOrUpdateNode(Score(2,99,99,99),2);
     rankSkipList->InsertOrUpdateNode(Score(3,10,29,39),3);
@@ -128,20 +132,16 @@ int main()
     rankSkipList->InsertOrUpdateNode(Score(12,90,80,85),12);
     rankSkipList->InsertOrUpdateNode(Score(13,80,85,90),13);
     rankSkipList->InsertOrUpdateNode(Score(14,80,90,85),14);
-    for (int i = 15;i <= MAX_RANK;i++)
-    {
-        rankSkipList->InsertOrUpdateNode(Score(i,std::rand() % 100 + 1,std::rand() % 100 + 1,std::rand() % 100 + 1),i);
-    }
     rankSkipList->InsertOrUpdateNode(Score(101,0,0,1),101);
     rankSkipList->InsertOrUpdateNode(Score(102,100,100,100),102);
-
     std::map<int,bool> res;
-    for (int i = 1;i <= MAX_RANK;i++)
-    {
-        skiplistNode<Score,int>* node = rankSkipList->GetNodeByRank(i);
+    int i = 1;
+    skiplistNode<Score,int>* node = rankSkipList->GetNodeByRank(i);
+    do{
         if (node != NULL)
         {
             Score score = node->score;
+            //排行榜不可能重复
             if (res.find(score.getId()) != res.end())
             {
                 printf("rank error id = %d \n",score.getId());
@@ -149,6 +149,18 @@ int main()
             printf("rank = %d id = %d,sum = %d,chinese = %d,math = %d,english = %d\n",
             i,score.getId(),score.Sum(), score.getChinese(),score.getMath(),score.getEnglish());
             res[score.getId()] = true;
+            i++;
+            node = rankSkipList->GetNodeByRank(i);
         }
+    }while (node != NULL);
+
+    printf("======================================\n");
+    std::list<skiplistNode<Score,int>*> list = rankSkipList->GetRangeNodesByRank(10,15);
+    for (auto it : list)
+    {
+        Score score = it->score;
+        printf("id = %d,sum = %d,chinese = %d,math = %d,english = %d\n",
+                score.getId(),score.Sum(), score.getChinese(),score.getMath(),score.getEnglish());
     }
+    return  0;
 }

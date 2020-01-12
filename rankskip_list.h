@@ -8,6 +8,7 @@
 
 #include <unordered_map>
 #include <cmath>
+#include <list>
 using namespace std;
 
 #define ZSKIPLIST_MAXLEVEL 64 /* Should be enough for 2^64 elements */
@@ -136,6 +137,14 @@ public:
      * @return
      */
     skiplistNode<SCORE_TYPE,MEMBER_TYPE>* GetNodeByRank(unsigned long rank);
+
+    /**
+     *获取指定范围排名的节点info
+     * @param zsl
+     * @param rank
+     * @return rank[start,end]
+     */
+    std::list<skiplistNode<SCORE_TYPE,MEMBER_TYPE>*> GetRangeNodesByRank(unsigned long start, unsigned long end);
 private:
     /**
      * 创建一个节点
@@ -460,6 +469,35 @@ skiplistNode<SCORE_TYPE,MEMBER_TYPE> *CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::Get
         }
     }
     return NULL;
+}
+
+template<typename SCORE_TYPE, typename MEMBER_TYPE>
+std::list<skiplistNode<SCORE_TYPE,MEMBER_TYPE>*> CRankSkipList<SCORE_TYPE, MEMBER_TYPE>::GetRangeNodesByRank(unsigned long start, unsigned long end)
+{
+    start = start <= 0 ? 1 : start;
+    if (start > end)
+    {
+        return {};
+    }
+    skiplistNode<SCORE_TYPE,MEMBER_TYPE>* tmpNode = GetNodeByRank(start);
+    if (tmpNode == NULL)
+    {
+        return {};
+    }
+    std::list<skiplistNode<SCORE_TYPE,MEMBER_TYPE>*> resList;
+    resList.push_back(tmpNode);
+    start++;
+    while (start <= end)
+    {
+        start++;
+        tmpNode = tmpNode->levels[0].forward;
+        if (tmpNode == NULL)
+        {
+            break;
+        }
+        resList.push_back(tmpNode);
+    }
+    return std::move(resList);
 }
 
 template <typename SCORE_TYPE,typename MEMBER_TYPE>
