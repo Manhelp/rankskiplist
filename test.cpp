@@ -33,44 +33,57 @@ public:
             this->math == d.math && this->english == d.english;
     }
 
-    bool operator > (const Score& d)
+    bool operator !=(const Score& d)
     {
-        return !(*this < d);
+        return !(*this == d);
     }
 
-    bool operator < (const Score& d)
+    bool operator > (const Score& d)
     {
         int sumMe = chinese + math + english;
         int sumHe = d.chinese + d.math + d.english;
-        if (sumMe < sumHe)
+        if (sumMe > sumHe)
         {
             return true;
         }
         else if (sumMe == sumHe)
         {
-            if (this->chinese < d.chinese)
+            if (this->chinese > d.chinese)
             {
                 return true;
             }
             else if (this->chinese == d.chinese)
             {
-                if (this->math < d.math)
+                if (this->math > d.math)
                 {
                     return true;
                 }
                 else if (this->math == d.math)
                 {
-                    return id < d.id;
+                    if (this->english > d.english)
+                    {
+                        return true;
+                    }
+                    else if (this->english == d.english)
+                    {
+                        return id > d.id;
+                    } else{
+                        return false;
+                    }
+                } else{
+                    return false;
                 }
+            } else{
+                return false;
             }
+        } else{
+            return false;
         }
-
-        return false;
     }
 
-    bool operator <= (const Score& d)
+    bool operator < (const Score& d)
     {
-        return (*this < d) || (*this == d);
+        return !(*this > d);
     }
 
     int getId() const
@@ -122,14 +135,20 @@ int main()
     rankSkipList->InsertOrUpdateNode(Score(101,0,0,1),101);
     rankSkipList->InsertOrUpdateNode(Score(102,100,100,100),102);
 
+    std::map<int,bool> res;
     for (int i = 1;i <= MAX_RANK;i++)
     {
         skiplistNode<Score,int>* node = rankSkipList->GetNodeByRank(i);
         if (node != NULL)
         {
             Score score = node->score;
-            printf("rank = %d,id = %d,sum = %d,chinese = %d,math = %d,english = %d\n",
+            if (res.find(score.getId()) != res.end())
+            {
+                printf("rank error id = %d \n",score.getId());
+            }
+            printf("rank = %d id = %d,sum = %d,chinese = %d,math = %d,english = %d\n",
             i,score.getId(),score.Sum(), score.getChinese(),score.getMath(),score.getEnglish());
+            res[score.getId()] = true;
         }
     }
 }

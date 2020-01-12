@@ -180,7 +180,7 @@ skiplistNode<SCORE_TYPE,MEMBER_TYPE> *CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::Ins
     //如果节点已存在，先删除老的节点
     if(it != mrankMap.end())
     {
-        return  UpdateScore(score,ele);
+        return UpdateScore(score,ele);
     }
 
     tmpNode = mskiplist.header;
@@ -304,8 +304,8 @@ int CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::DeleteNode(MEMBER_TYPE ele) {
         //判断找到的节点是否是要删除的节点
         if (tmpNode && score == tmpNode->score && tmpNode->ele == ele) {
             DeleteNode(tmpNode, update);
-            delete tmpNode;
             mrankMap.erase(ele);
+            delete tmpNode;
             return 1;
         }
     }
@@ -386,6 +386,12 @@ skiplistNode<SCORE_TYPE,MEMBER_TYPE> *CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::Upd
         }
 
         tmpNode = tmpNode->levels[0].forward;
+        //没找到???,不可能
+        if (tmpNode == NULL || tmpNode->ele != it->second->ele || tmpNode->score != it->second->score)
+        {
+            printf("Update score failed,update node not found \n");
+            return NULL;
+        }
         //新的节点还在原有节点的中间，更新后的节点位置并不会发生变化，则直接更新积分
         if ((tmpNode->backward == NULL || tmpNode->backward->score > newscore) &&
             (tmpNode->levels[0].forward == NULL || tmpNode->levels[0].forward->score < newscore))
@@ -396,12 +402,12 @@ skiplistNode<SCORE_TYPE,MEMBER_TYPE> *CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::Upd
 
         //删除老的节点
         DeleteNode(tmpNode, update);
+        mrankMap.erase(tmpNode->ele);
         delete tmpNode;
+        skiplistNode<SCORE_TYPE,MEMBER_TYPE> *newnode = InsertOrUpdateNode(newscore, tmpNode->ele);
+        mrankMap[ele] = newnode;
+        return newnode;
     }
-
-    skiplistNode<SCORE_TYPE,MEMBER_TYPE> *newnode = InsertOrUpdateNode(newscore, tmpNode->ele);
-    mrankMap[ele] = newnode;
-    return newnode;
 }
 
 template <typename SCORE_TYPE,typename MEMBER_TYPE>
