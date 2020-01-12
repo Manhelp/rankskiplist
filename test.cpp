@@ -4,6 +4,9 @@
 
 #include <map>
 #include "rankskip_list.h"
+
+#define  MAX_RANK 200
+
 class Score
 {
 public:
@@ -97,7 +100,7 @@ private:
 
 int main()
 {
-    CRankSkipList<Score,int>* rankSkipList = new CRankSkipList<Score,int>();
+    CRankSkipList<Score,int>* rankSkipList = new CRankSkipList<Score,int>(MAX_RANK);
     rankSkipList->InsertOrUpdateNode(Score(1,100,99,100),1);
     rankSkipList->InsertOrUpdateNode(Score(2,99,99,99),2);
     rankSkipList->InsertOrUpdateNode(Score(3,10,29,39),3);
@@ -112,21 +115,14 @@ int main()
     rankSkipList->InsertOrUpdateNode(Score(12,90,80,85),12);
     rankSkipList->InsertOrUpdateNode(Score(13,80,85,90),13);
     rankSkipList->InsertOrUpdateNode(Score(14,80,90,85),14);
-    for (int i = 15;i <= 100;i++)
+    for (int i = 15;i <= MAX_RANK;i++)
     {
         rankSkipList->InsertOrUpdateNode(Score(i,std::rand() % 100 + 1,std::rand() % 100 + 1,std::rand() % 100 + 1),i);
     }
-//    skiplistNode<Score,int>* node = rankSkipList->GetNodeByRank(1);
-//    int i = 1;
-//    while (node != NULL)
-//    {
-//        Score score = node->score;
-//        printf("rank = %d,id = %d,sum = %d,chinese = %d,math = %d,english = %d\n",
-//               i,score.getId(),score.Sum(), score.getChinese(),score.getMath(),score.getEnglish());
-//        i++;
-//        node = node->levels[0].forward;
-//    }
-    for (int i = 1;i <= 100;i++)
+    rankSkipList->InsertOrUpdateNode(Score(101,0,0,1),101);
+    rankSkipList->InsertOrUpdateNode(Score(102,100,100,100),102);
+
+    for (int i = 1;i <= MAX_RANK;i++)
     {
         skiplistNode<Score,int>* node = rankSkipList->GetNodeByRank(i);
         if (node != NULL)
