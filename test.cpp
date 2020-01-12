@@ -5,7 +5,7 @@
 #include <map>
 #include "rankskip_list.h"
 
-#define  MAX_RANK 200
+#define  MAX_RANK 100
 
 class Score
 {
