@@ -17,20 +17,35 @@ using namespace std;
 template <typename SCORE_TYPE,typename MEMBER_TYPE>
 struct skiplistNode
 {
+    skiplistNode(int level)
+    {
+        this->backward = NULL;
+        this->level = level;
+        this->levels = new zskiplistLevel[level];
+        for (int i = 0;i < level;i++)
+        {
+            this->levels[i].forward = NULL;
+            this->levels[i].span = 0;
+        }
+    }
+
+    ~skiplistNode()
+    {
+        if (levels) delete[] levels;
+        levels = NULL;
+        backward = NULL;
+    }
     SCORE_TYPE score;  //排序key，必须是一个可以比较的类型，必须实现对象的比较操作符(一般位数值类型(long,int,double等))
-    MEMBER_TYPE mem;  //分数对应的对象信息,必须是一个可以比较的类型，必须实现对象的比较操作符
+    MEMBER_TYPE ele;  //分数对应的对象信息,必须是一个可以比较的类型，必须实现对象的比较操作符
     skiplistNode *backward; //第0层的回溯指针
     //每层的节点信息
     struct zskiplistLevel
     {
         skiplistNode<SCORE_TYPE,MEMBER_TYPE> *forward;  //当前层当前节点下一个节点
         unsigned long span; //该层中当前节点与下一结点之间相隔几个节点(在level[0]中的结点数,level[0]节点是连续的该值为0)
-    }levels[];
-    static int Size(int level)
-    {
-        int size =  sizeof(skiplistNode<SCORE_TYPE,MEMBER_TYPE>) + level * (sizeof(zskiplistLevel));
-        return  size;
-    }
+    };
+    int level;
+    zskiplistLevel *levels;
 };
 
 template <typename SCORE_TYPE,typename MEMBER_TYPE>
@@ -46,18 +61,13 @@ class CRankSkipList
 {
 public:
     /**
-     * 注意初始化的时候调表的头部指针已经存在但是长度为0，跳表的头是一个没有实际意义的节点
+     * 注意初始化的时候调表的头部指针已经存在但是长度为0
      */
     CRankSkipList(unsigned long maxLen = 0)
     {
         mskiplist.level = 1;
         mskiplist.length = 0;
-        mskiplist.header = (skiplistNode<SCORE_TYPE,MEMBER_TYPE>*) malloc(skiplistNode<SCORE_TYPE,MEMBER_TYPE>::Size(ZSKIPLIST_MAXLEVEL));
-        for (int i = 0; i < ZSKIPLIST_MAXLEVEL; i++) {
-            mskiplist.header->levels[i].forward = NULL;
-            mskiplist.header->levels[i].span = 0;
-        }
-        mskiplist.header->backward = NULL;
+        mskiplist.header = new skiplistNode<SCORE_TYPE,MEMBER_TYPE>(ZSKIPLIST_MAXLEVEL);
         mskiplist.tail = NULL;
         mrankMap.clear();
         mrankMaxLen = maxLen;
@@ -66,10 +76,10 @@ public:
     ~CRankSkipList()
     {
         skiplistNode<SCORE_TYPE,MEMBER_TYPE> *node = mskiplist.header->levels[0].forward, *next;
-        free(mskiplist.header);
+        delete mskiplist.header;
         while(node) {
             next = node->levels[0].forward;
-            free(node);
+            delete node;
             node = next;
         }
     }
@@ -86,7 +96,7 @@ public:
      * 删除一个节点
      * @param score
      * @param ele
-     * @return
+     * @return 1 ok 0 not found
      */
     int DeleteNode(MEMBER_TYPE ele);
     /**
@@ -127,7 +137,19 @@ public:
      */
     skiplistNode<SCORE_TYPE,MEMBER_TYPE>* GetNodeByRank(unsigned long rank);
 private:
+    /**
+     * 创建一个节点
+     * @param level
+     * @param score
+     * @param value
+     * @return
+     */
     skiplistNode<SCORE_TYPE,MEMBER_TYPE>* CreateSkipListNode(int level,SCORE_TYPE score,MEMBER_TYPE value);
+    /**
+     * 删除节点
+     * @param deleteNode
+     * @param update
+     */
     void DeleteNode(skiplistNode<SCORE_TYPE,MEMBER_TYPE> *deleteNode, skiplistNode<SCORE_TYPE,MEMBER_TYPE> **update);
 
     //随机跳表的层数
@@ -140,7 +162,7 @@ private:
     }
 private:
     //tips:最初想把rank也缓存在map里，但是发现插入一个节点很可能会导致很多甚至所有的节点的排名都发生变化，缓存失效的概率太大
-    std::map<MEMBER_TYPE,SCORE_TYPE> mrankMap;
+    std::map<MEMBER_TYPE,skiplistNode<SCORE_TYPE,MEMBER_TYPE>*> mrankMap;
     skiplist<SCORE_TYPE,MEMBER_TYPE> mskiplist;
     unsigned long mrankMaxLen;//排行榜最大长度 0 不限制
 };
@@ -148,21 +170,34 @@ private:
 template <typename SCORE_TYPE,typename MEMBER_TYPE>
 skiplistNode<SCORE_TYPE,MEMBER_TYPE> *CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::InsertOrUpdateNode(SCORE_TYPE score, MEMBER_TYPE ele)
 {
-    skiplistNode<SCORE_TYPE,MEMBER_TYPE> *update[ZSKIPLIST_MAXLEVEL]; //每一层需要修改的结点,在每层中，新的节点需要插入在该节点的后面
+    skiplistNode<SCORE_TYPE,MEMBER_TYPE> *update[ZSKIPLIST_MAXLEVEL] = {0}; //每一层需要修改的结点,在每层中，新的节点需要插入在该节点的后面
     skiplistNode<SCORE_TYPE,MEMBER_TYPE> *tmpNode;
     unsigned int rank[ZSKIPLIST_MAXLEVEL];  //每一层要修改的结点的排名(根据score从小到大排序)
     int i, level;
+
+    auto it = mrankMap.find(ele);
+    //如果节点已存在，先删除老的节点
+    if(it != mrankMap.end())
+    {
+        return  UpdateScore(score,ele);
+    }
 
     tmpNode = mskiplist.header;
     for (i = mskiplist.level-1; i >= 0; i--)
     {
         //初始化 update数组和rank数组
         rank[i] = i == (mskiplist.level - 1) ? 0 : rank[i+1];
+        //不可能出现这种情况，如果出现则说明调表结构已经被破坏,排行榜已经乱了
+        if (!(i < tmpNode->level))
+        {
+            printf("The data of skiplist is bad\n");
+            return NULL;
+        }
         //如果当前节点的下一个节点is not null，且他的下一个节点的score小于插入节点的score，或者他们积分相等但是ele小于插入节点的ele，则继续往后找，直到
         //找到条件不满足的跳出循环，则新插入的节点需要插入该层的当前节点后面，把此节点记录到update数组中
         while (tmpNode->levels[i].forward &&
-                (tmpNode->levels[i].forward->score < score ||
-                    (tmpNode->levels[i].forward->score == score && tmpNode->levels[i].forward->mem < ele)))
+                (tmpNode->levels[i].forward->score > score ||
+                    (tmpNode->levels[i].forward->score == score && tmpNode->levels[i].forward->ele > ele)))
         {
             rank[i] += tmpNode->levels[i].span;  //该层中当前节点与下一结点之间在level[0]中的结点数累计的结果即每一层要修改的结点的排名
             tmpNode = tmpNode->levels[i].forward;
@@ -173,8 +208,9 @@ skiplistNode<SCORE_TYPE,MEMBER_TYPE> *CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::Ins
     //如果长度==最大长度
     if (mrankMaxLen > 0 && mskiplist.length == mrankMaxLen)
     {
-        //如果更新的节点是最后一个且新的分数比当前分数低(分最低),直接返回，不进榜
-        if (tmpNode->levels[0].forward == NULL || tmpNode->levels[0].forward->score > score)
+        //如果更新的节点是第一个节点(分最高),且新的分数比当前分数高，或者更新的节点是最后一个(分最低),且新的分数比当前分数低直接返回，不进榜
+        if ((update[0]->backward == NULL && tmpNode->backward->score < score) ||
+            (update[0]->levels[0].forward == NULL || tmpNode->levels[0].forward->score > score))
         {
             return NULL;
         }
@@ -189,7 +225,6 @@ skiplistNode<SCORE_TYPE,MEMBER_TYPE> *CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::Ins
         {
             rank[i] = 0;
             update[i] = mskiplist.header; //当前节点初始化为header
-            update[i]->levels[i].forward = mskiplist.tail; //下一节点位初始化为tail
             update[i]->levels[i].span = mskiplist.length; //span即skiplist的长度
         }
         mskiplist.level = level;  //更新skiplist的层数
@@ -226,7 +261,7 @@ skiplistNode<SCORE_TYPE,MEMBER_TYPE> *CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::Ins
     }
     mskiplist.length++;
     //更新map
-    mrankMap[ele] = score;
+    mrankMap[ele] = tmpNode;
     //如果长度大于最大长度
     if (mrankMaxLen > 0 && mskiplist.length > mrankMaxLen)
     {
@@ -237,7 +272,7 @@ skiplistNode<SCORE_TYPE,MEMBER_TYPE> *CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::Ins
 
 template <typename SCORE_TYPE,typename MEMBER_TYPE>
 int CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::DeleteNode(MEMBER_TYPE ele) {
-    skiplistNode<SCORE_TYPE,MEMBER_TYPE> *update[ZSKIPLIST_MAXLEVEL]; //每一层需要修改的结点,在每层中，新的节点需要插入在该节点的后面
+    skiplistNode<SCORE_TYPE,MEMBER_TYPE> *update[ZSKIPLIST_MAXLEVEL] = {0}; //每一层需要修改的结点,在每层中，新的节点需要插入在该节点的后面
     skiplistNode<SCORE_TYPE,MEMBER_TYPE> * tmpNode;
     int i;
 
@@ -245,14 +280,20 @@ int CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::DeleteNode(MEMBER_TYPE ele) {
     //如果节点已存在，先删除老的节点
     if(it != mrankMap.end())
     {
-        SCORE_TYPE score = it->second;
+        SCORE_TYPE& score = it->second->score;
         tmpNode = mskiplist.header;
         for (i = mskiplist.level-1; i >= 0; i--) {
+            //不可能出现这种情况，如果出现则说明调表结构已经被破坏,排行榜已经乱了
+            if (!(i < tmpNode->level))
+            {
+                printf("The data of skiplist is bad\n");
+                return 0;
+            }
             //如果当前节点的下一个节点is not null，且他的下一个节点的score小于插入节点的score，或者他们积分相等但是ele小于插入节点的ele，则继续往后找，直到
             //找到条件不满足的跳出循环，则每层要删除的节点的前一个节点都存在update数组中
             while (tmpNode->levels[i].forward &&
-                (tmpNode->levels[i].forward->score < score ||
-                    (tmpNode->levels[i].forward->score == score && tmpNode->levels[i].forward->mem < ele)))
+                (tmpNode->levels[i].forward->score > score ||
+                    (tmpNode->levels[i].forward->score == score && tmpNode->levels[i].forward->ele > ele)))
             {
                 tmpNode = tmpNode->levels[i].forward;
             }
@@ -261,9 +302,9 @@ int CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::DeleteNode(MEMBER_TYPE ele) {
 
         tmpNode = tmpNode->levels[0].forward;
         //判断找到的节点是否是要删除的节点
-        if (tmpNode && score == tmpNode->score && tmpNode->mem == ele) {
+        if (tmpNode && score == tmpNode->score && tmpNode->ele == ele) {
             DeleteNode(tmpNode, update);
-            free(tmpNode);
+            delete tmpNode;
             mrankMap.erase(ele);
             return 1;
         }
@@ -288,6 +329,12 @@ unsigned long CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::DeleteRangeByRank(unsigned 
 
     tmpNode = mskiplist.header;
     for (i = mskiplist.level-1; i >= 0; i--) {
+        //不可能出现这种情况，如果出现则说明调表结构已经被破坏,排行榜已经乱了
+        if (!(i < tmpNode->level))
+        {
+            printf("The data of skiplist is bad\n");
+            return 0;
+        }
         while (tmpNode->levels[i].forward && (traversed + tmpNode->levels[i].span) < start) {
             traversed += tmpNode->levels[i].span;
             tmpNode = tmpNode->levels[i].forward;
@@ -300,8 +347,8 @@ unsigned long CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::DeleteRangeByRank(unsigned 
     while (tmpNode && traversed <= end) {
         skiplistNode<SCORE_TYPE,MEMBER_TYPE> *next = tmpNode->levels[0].forward;
         DeleteNode(tmpNode,update);
-        mrankMap.erase(tmpNode->mem);
-        free(tmpNode);
+        mrankMap.erase(tmpNode->ele);
+        delete  tmpNode;
         traversed++;
         tmpNode = next;
         removed++;
@@ -318,14 +365,20 @@ skiplistNode<SCORE_TYPE,MEMBER_TYPE> *CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::Upd
     //如果节点已存在，先删除老的节点
     if(it != mrankMap.end())
     {
-        SCORE_TYPE curscore = it->second;
+        SCORE_TYPE& curscore = it->second->score;
         tmpNode = mskiplist.header;
         for (i = mskiplist.level-1; i >= 0; i--) {
+            //不可能出现这种情况，如果出现则说明调表结构已经被破坏,排行榜已经乱了
+            if (!(i < tmpNode->level))
+            {
+                printf("The data of skiplist is bad\n");
+                return 0;
+            }
             //如果当前节点的下一个节点is not null，且他的下一个节点的score小于插入节点的score，或者他们积分相等但是ele小于插入节点的ele，则继续往后找，直到
             //找到条件不满足的跳出循环，则每层要update的节点的前一个节点都存在update数组中
             while (tmpNode->levels[i].forward &&
-                    (tmpNode->levels[i].forward->score < curscore ||
-                        (tmpNode->levels[i].forward->score == curscore && tmpNode->levels[i].forward->mem < ele)))
+                    (tmpNode->levels[i].forward->score > curscore ||
+                        (tmpNode->levels[i].forward->score == curscore && tmpNode->levels[i].forward->ele > ele)))
             {
                 tmpNode = tmpNode->levels[i].forward;
             }
@@ -333,9 +386,9 @@ skiplistNode<SCORE_TYPE,MEMBER_TYPE> *CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::Upd
         }
 
         tmpNode = tmpNode->levels[0].forward;
-        //如果更新的节点是第一个节点(分最高),且新的分数比当前分数高，或者更新的节点是最后一个(分最低),且新的分数比当前分数低
-        if ((tmpNode->backward == NULL || tmpNode->backward->score < newscore) &&
-            (tmpNode->levels[0].forward == NULL || tmpNode->levels[0].forward->score > newscore))
+        //新的节点还在原有节点的中间，更新后的节点位置并不会发生变化，则直接更新积分
+        if ((tmpNode->backward == NULL || tmpNode->backward->score > newscore) &&
+            (tmpNode->levels[0].forward == NULL || tmpNode->levels[0].forward->score < newscore))
         {
             tmpNode->score = newscore;
             return tmpNode;
@@ -343,11 +396,11 @@ skiplistNode<SCORE_TYPE,MEMBER_TYPE> *CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::Upd
 
         //删除老的节点
         DeleteNode(tmpNode, update);
-        free(tmpNode);
+        delete tmpNode;
     }
 
-    skiplistNode<SCORE_TYPE,MEMBER_TYPE> *newnode = InsertOrUpdateNode(newscore, tmpNode->mem);
-    mrankMap[ele] = newscore;
+    skiplistNode<SCORE_TYPE,MEMBER_TYPE> *newnode = InsertOrUpdateNode(newscore, tmpNode->ele);
+    mrankMap[ele] = newnode;
     return newnode;
 }
 
@@ -369,13 +422,13 @@ unsigned long CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::Rank(MEMBER_TYPE ele)
         //如果当前节点的下一个节点is not null，且他的下一个节点的score小于插入节点的score，或者他们积分相等但是ele小于等于插入节点的ele，则继续往后找，直到
         //找到条件不满足的跳出循环
         while (tmpNode->levels[i].forward &&
-                 (tmpNode->levels[i].forward->score < score ||
-                    (tmpNode->levels[i].forward->score == score && tmpNode->levels[i].forward->mem <= ele))) {
+                 (tmpNode->levels[i].forward->score > score ||
+                    (tmpNode->levels[i].forward->score == score && tmpNode->levels[i].forward->ele >= ele))) {
             rank += tmpNode->levels[i].span;  //span该层中当前节点与下一结点之间在level[0]中的结点数累计的结果即每一层要修改的结点的排名
             tmpNode = tmpNode->levels[i].forward;
         }
 
-        if (tmpNode->mem && ele == tmpNode->mem) {
+        if (tmpNode->ele && ele == tmpNode->ele) {
             return rank;
         }
     }
@@ -406,13 +459,9 @@ skiplistNode<SCORE_TYPE,MEMBER_TYPE> *CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::Get
 template <typename SCORE_TYPE,typename MEMBER_TYPE>
 skiplistNode<SCORE_TYPE,MEMBER_TYPE>* CRankSkipList<SCORE_TYPE,MEMBER_TYPE>::CreateSkipListNode(int level,SCORE_TYPE score,MEMBER_TYPE value)
 {
-    skiplistNode<SCORE_TYPE,MEMBER_TYPE> *zn = (skiplistNode<SCORE_TYPE,MEMBER_TYPE>*) malloc(skiplistNode<SCORE_TYPE,MEMBER_TYPE>::Size(level));
+    skiplistNode<SCORE_TYPE,MEMBER_TYPE> *zn = new skiplistNode<SCORE_TYPE,MEMBER_TYPE>(level);
     zn->score = score;
-    zn->mem = value;
-    for (int i = 0; i < level; i++) {
-        zn->levels[i].forward = NULL;
-        zn->levels[i].span = 0;
-    }
+    zn->ele = value;
     return zn;
 }
 

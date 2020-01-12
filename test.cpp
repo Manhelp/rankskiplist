@@ -32,6 +32,11 @@ public:
 
     bool operator > (const Score& d)
     {
+        return !(*this < d);
+    }
+
+    bool operator < (const Score& d)
+    {
         int sumMe = chinese + math + english;
         int sumHe = d.chinese + d.math + d.english;
         if (sumMe < sumHe)
@@ -58,11 +63,6 @@ public:
         }
 
         return false;
-    }
-
-    bool operator < (const Score& d)
-    {
-        return !(*this > d);
     }
 
     bool operator <= (const Score& d)
