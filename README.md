@@ -2,6 +2,8 @@
 - 一个快速高效的排行榜模板类，可以快速的查找排名和查找范围排名排行榜的需求
 # 实现原理
 -　根据redis zset数据结构实现,redis zset算是skiplist的变种，在skiplist基础上做了一些优化，可以快速的查找指定排名的数据
+- [什么是skiplist](https://blog.csdn.net/D_Guco/article/details/78004991)
+- [基于skiplist实现高效的排行算法](https://blog.csdn.net/D_Guco/article/details/103950188)
 # 测试用例
 - [源码test.cpp](https://github.com/DGuco/rankskiplist/blob/master/test.cpp)
 - 测试结果：
