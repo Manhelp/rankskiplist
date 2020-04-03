@@ -83,6 +83,10 @@ public:
 
     bool operator < (const Score& d)
     {
+        if (*this == d)
+        {
+            return false;
+        }
         return !(*this > d);
     }
 
@@ -135,6 +139,12 @@ int main()
     rankSkipList->InsertOrUpdateNode(Score(101,0,0,1),101);
     rankSkipList->InsertOrUpdateNode(Score(102,100,100,100),102);
     std::map<int,bool> res;
+    for (int i = 1;i <= 200;i++)
+    {
+        int ele = 20 + i * 400;
+        rankSkipList->DeleteNode(ele);
+        res[ele] = true;
+    }
     int i = 1;
     skiplistNode<Score,int>* node = rankSkipList->GetNodeByRank(i);
     do{
@@ -153,8 +163,25 @@ int main()
             node = rankSkipList->GetNodeByRank(i);
         }
     }while (node != NULL);
-
-    printf("======================================\n");
+    printf("===========================================================================\n");
+    for (int i = 1;i <= 50;i++)
+    {
+        rankSkipList->DeleteRangeByRank(1);
+    }
+    i = 1;
+    node = rankSkipList->GetNodeByRank(i);
+    do{
+        if (node != NULL)
+        {
+            Score score = node->score;
+            printf("rank = %d id = %d,sum = %d,chinese = %d,math = %d,english = %d\n",
+                   i,score.getId(),score.Sum(), score.getChinese(),score.getMath(),score.getEnglish());
+            res[score.getId()] = true;
+            i++;
+            node = rankSkipList->GetNodeByRank(i);
+        }
+    }while (node != NULL);
+    printf("===========================================================================\n");
     std::list<skiplistNode<Score,int>*> list = rankSkipList->GetRangeNodesByRank(10,15);
     for (auto it : list)
     {
